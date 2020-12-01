@@ -1,195 +1,215 @@
 """
+@author: Arijit Gayen
+--------------------------------------------------------
+
 Web Scraping Articles from Telegraph India Website
+
+--------------------------------------------------------
 
 www.telegrapgindia.com
 
-To-do: 
-1. Convert entire code using OOP principles
-2. Provide documentation for better readability
+--------------------------------------------------------
+
+Future Scope: 
+
 """
 
-import pandas as pd
-import numpy as np
-from tqdm import tqdm
-import progressbar
+class Telegraph:
+	def __init__(self):
 
-from bs4 import BeautifulSoup
-from urllib.request import Request, urlopen
-import requests
-import csv
+		"""
+		The only method functions user has to use is extract
+
+		"""
+
+		import pandas as pd
+		import numpy as np
+		from tqdm import tqdm
+		import progressbar
+
+		from bs4 import BeautifulSoup
+		from urllib.request import Request, urlopen
+		import requests
+		import csv
+
+		self.base_url = "https://www.telegraphindia.com"
 
 
 
-base_url = "https://www.telegraphindia.com"
+	def extract_links(self, section, num_pages):
+		"""
 
-def extract_links(section, num_pages):
-	base_url = "https://www.telegraphindia.com"
-	url = base_url + "/" + section
+		Saves the links in a .csv file
 
-	page = requests.get(url)
-	soup = BeautifulSoup(page.text, "html.parser")
-	links = soup.find_all('a',attrs={'class':'muted-link ellipsis_data_2'})
+		"""
+		url = self.base_url + "/" + section
 
-	widgets = ['[',progressbar.Timer(format= 'elapsed time: %(elapsed)s'),']',progressbar.Bar('*'),'(',progressbar.ETA(),')'] 
+		page = requests.get(url)
+		soup = BeautifulSoup(page.text, "html.parser")
+		links = soup.find_all('a',attrs={'class':'muted-link ellipsis_data_2'})
 
-	with open("telegraph_data/links.csv", "w") as f:
-		writer = csv.writer(f)
-		for link in links:
-			temp = link.get('href')
-			writer.writerow([temp])
+		widgets = ['[',progressbar.Timer(format= 'elapsed time: %(elapsed)s'),']',progressbar.Bar('*'),'(',progressbar.ETA(),')'] 
 
-		bar = progressbar.ProgressBar(max_value = num_pages, widgets = widgets).start()
-
-		for i in range(2, num_pages):
-			page_url = url + '/page-'+str(i)
-			page = requests.get(page_url)
-			soup = BeautifulSoup(page.text, "html.parser")
-			links = soup.find_all('a',attrs={'class':'muted-link ellipsis_data_2'})
-
+		with open("telegraph_data/links.csv", "w") as f:
+			writer = csv.writer(f)
 			for link in links:
 				temp = link.get('href')
 				writer.writerow([temp])
 
+			bar = progressbar.ProgressBar(max_value = num_pages, widgets = widgets).start()
+
+			for i in range(2, num_pages):
+				page_url = url + '/page-'+str(i)
+				page = requests.get(page_url)
+				soup = BeautifulSoup(page.text, "html.parser")
+				links = soup.find_all('a',attrs={'class':'muted-link ellipsis_data_2'})
+
+				for link in links:
+					temp = link.get('href')
+					writer.writerow([temp])
+
+				bar.update(i)
+
+
+
+
+	def extract_articles_from_date(monthLim = None, dayLim = None):
+		df = pd.read_csv("links.csv")
+		df.columns = ['Link']
+
+		widgets = ['[',progressbar.Timer(format= 'elapsed time: %(elapsed)s'),']',progressbar.Bar('*'),'(',progressbar.ETA(),')']
+
+		dates = []
+		authors = []
+		headlines = []
+		articles = []
+		count = 0
+		flag = 0
+
+		bar = progressbar.ProgressBar(max_value = df.shape[0], widgets = widgets).start()
+
+		for i in range(df.shape[0]):
+			if flag == 1:
+				break
+			link = base_url + df.iloc[i,0]
+			page = requests.get(link)
+			soup = BeautifulSoup(page.text, "html.parser")
+
+			temp = str(soup.find_all('div', attrs = {'class':'fs-12 float-left'}))
+
+			idx = temp.find('Published')
+			idx2 = temp[idx+10:].find('<')
+
+			try:
+				val = temp[idx+10:idx+10+idx2]
+				day = val[:2]
+				month = val[3:5]
+
+				if monthLim != None and dayLim != None:
+					if (int(month) < monthLim) or (int(month) == monthLim and int(day) <= dayLim):
+						flag = 1
+						continue
+
+				dates.append(val)
+			except:
+				count += 1
+				dates.append("")
+
+
+			try:
+				authors.append(soup.find_all('span',attrs={'class':'text-breadcrumbs'})[-1].text)
+			except:
+				authors.append("")
+				count += 1
+
+
+			try:
+				headlines.append(soup.title.text)
+			except:
+				headlines.append("")
+				count += 1
+
+
+			temp = soup.find_all('p')
+			s = ""
+
+			for t in temp:
+				s = s+t.text
+			try:
+				articles.append(s)
+
+			except:
+				articles.append("")
+				count += 1
+
 			bar.update(i)
 
+		print("# Errors: ", count)
+		print("# Dates: ", len(dates))
+		print("# Authors: ", len(authors))
+		print("# Headlines: ", len(headlines))
+		print("# Articles: ", len(articles))
+
+
+		for i in range(len(dates)):
+			date = dates[i]
+			if date[8] != ',':
+				continue
+			else:
+				dates[i] = date[:6] + '20' + date[6:]
+
+		return dates, authors, headlines, articles
 
 
 
-def extract_articles_from_date(monthLim = None, dayLim = None):
-	df = pd.read_csv("links.csv")
-	df.columns = ['Link']
+	def process_dataset(df):
+		dates = list(df['Date'])
+		df = df.drop(columns = ['Date'])
 
-	widgets = ['[',progressbar.Timer(format= 'elapsed time: %(elapsed)s'),']',progressbar.Bar('*'),'(',progressbar.ETA(),')']
+		dates = pd.to_datetime(dates)
+		df['Date'] = dates
+		df = df.sort_values(by = 'Date')
 
-	dates = []
-	authors = []
-	headlines = []
-	articles = []
-	count = 0
-	flag = 0
+		df = df[df['Headline'].notna()]
+		df = df.drop_duplicates(subset ="Headline").reset_index(drop = False)
+		df = df.drop(columns = ["index"])
 
-	bar = progressbar.ProgressBar(max_value = df.shape[0], widgets = widgets).start()
-
-	for i in range(df.shape[0]):
-		if flag == 1:
-			break
-		link = base_url + df.iloc[i,0]
-		page = requests.get(link)
-		soup = BeautifulSoup(page.text, "html.parser")
-
-		temp = str(soup.find_all('div', attrs = {'class':'fs-12 float-left'}))
-
-		idx = temp.find('Published')
-		idx2 = temp[idx+10:].find('<')
-
-		try:
-			val = temp[idx+10:idx+10+idx2]
-			day = val[:2]
-			month = val[3:5]
-
-			if monthLim != None and dayLim != None:
-				if (int(month) < monthLim) or (int(month) == monthLim and int(day) <= dayLim):
-					flag = 1
-					continue
-
-			dates.append(val)
-		except:
-			count += 1
-			dates.append("")
+		return df
 
 
-		try:
-			authors.append(soup.find_all('span',attrs={'class':'text-breadcrumbs'})[-1].text)
-		except:
-			authors.append("")
-			count += 1
 
 
-		try:
-			headlines.append(soup.title.text)
-		except:
-			headlines.append("")
-			count += 1
+	def extract(self, section, num_pages, timeframe = None):
+		"""
+		This method function takes in 3 parameters
+
+		1. section -> A string determining the section of Telegraph India
+		website whose articles are to be extracted.
+		The string should be as appears in the url of respective section
+
+		2. num_pages -> An integer determining the total number of pages 
+		in that section
+
+		e. timeframe -> A string which determines the timeframe.
+						Articles would be extracted from given date to present.
+						Valid format of the string is:
+						'MM-DD': For articles to be extracted from 15th April onwards, '04-15'
+						DEFAULT: None, which extracts all articles
 
 
-		temp = soup.find_all('p')
-		s = ""
+		Saves articles in a .csv file
+		"""
 
-		for t in temp:
-			s = s+t.text
-		try:
-			articles.append(s)
+		self.extract_links(section, num_pages)
 
-		except:
-			articles.append("")
-			count += 1
-
-		bar.update(i)
-
-	print("# Errors: ", count)
-	print("# Dates: ", len(dates))
-	print("# Authors: ", len(authors))
-	print("# Headlines: ", len(headlines))
-	print("# Articles: ", len(articles))
-
-
-	for i in range(len(dates)):
-		date = dates[i]
-		if date[8] != ',':
-			continue
+		if timeframe:
+			month = timeframe[:2]
+			day = timeframe[3:]
 		else:
-			dates[i] = date[:6] + '20' + date[6:]
+			day = None
+			month = None
 
-	return dates, authors, headlines, articles
-
-
-
-def process_dataset(df):
-	dates = list(df['Date'])
-	df = df.drop(columns = ['Date'])
-
-	dates = pd.to_datetime(dates)
-	df['Date'] = dates
-	df = df.sort_values(by = 'Date')
-
-	df = df[df['Headline'].notna()]
-	df = df.drop_duplicates(subset ="Headline").reset_index(drop = False)
-	df = df.drop(columns = ["index"])
-
-	return df
-
-
-def driver():
-	print("Sections in Telegraph India Website:\n1. Opinion\n2. Calcutta\n3. World\n4. Business\n5. Science & Tech")
-	print("6. Health\n7. Entertainment\n8. West Bengal\n9. North East\n10. Jharkhand\nEnter your choice: ")
-
-	choice = int(input())
-	if choice <1 or choice>10:
-		print("Invalid, try again!")
-
-	else:
-
-		map_ = {1:"opinion", 2:"calcutta", 3:"world", 4:"business", 5:"science-tech", 6:"health", 
-				7:"entertainment",8:"west-bengal", 9:"north-east", 10:"jharkhand"}
-
-		section = map_[choice]
-		print("Enter number of pages: ")
-		num_pages = int(input())
-
-		extract_links(section, num_pages)
-
-		print("\nDo you want to extract articles starting from a date till now?[y/n]: ")
-		yn = input()
-		
-		if yn == 'y' or yn =='Y':
-			print("Enter month[1-12]: ")
-			monthLim = int(input())
-			print("Enter day[1-31]: ")
-			dayLim = int(input())
-
-			dates, authors, headlines, articles = extract_articles_from_date(monthLim = monthLim, dayLim = dayLim)
-		else:
-			dates, authors, headlines, articles = extract_articles_from_date(monthLim = None, dayLim = None)
+		dates, authors, headlines, articles = self.extract_articles_from_date(month, day)
 
 		df = pd.DataFrame(columns = ["Date", "Author", "Headline", "Article"])
 		df["Date"] = dates
@@ -198,7 +218,3 @@ def driver():
 		df["Article"] = articles
 
 		df.to_csv("telegraph_data/articles.csv")
-
-
-
-driver()

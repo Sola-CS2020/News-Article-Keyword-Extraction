@@ -1,282 +1,270 @@
 """
+@author: Arijit Gayen
+----------------------------------------------------------------------
 
-Extract Keywords from articles
-using TF-IDF method
+Extract Keywords from articles using TF-IDF method
 
-To-do: 
-1. Convert entire Code using OOP principles
-2. Provide documentation for better Readability
-3. Explore and add Stemmer and Lemmatizer for better pre processing of Text
+----------------------------------------------------------------------
+
+Future Scope: 
+1. Explore and add Stemmer and Lemmatizer for better pre processing of Text
+2. Method to plot TIME SERIES
 """
 
 
+class Tfidf:
 
-import numpy as np
-import pandas as pd
-import re
-import nltk
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.feature_extraction.text import TfidfTransformer
+	def __init__(self):
+		"""
 
+		The only Method Function of use to the user is extract.
+		The others are helper functions.
 
+		"""
 
-def preprocess_text(text):
-	text = text.lower()
+		import numpy as np
+		import pandas as pd
+		import re
+		import nltk
+		from sklearn.feature_extraction.text import CountVectorizer
+		from sklearn.feature_extraction.text import TfidfTransformer
 
-	text = re.sub("</?.*?>"," <> ",text)
-	text=re.sub("(\\d|\\W)+"," ",text)
-
-	return text
-
-
-def sort_coo(coo_matrix):
-	tuples = zip(coo_matrix.col, coo_matrix.data)
-	return sorted(tuples, key=lambda x: (x[1], x[0]), reverse=True)
+		self.df = None
 
 
 
+	def preprocess_text(self, text):
+		text = text.lower()
 
-def extract_topn_from_vector(feature_names, sorted_items, topn):
+		text = re.sub("</?.*?>"," <> ",text)
+		text=re.sub("(\\d|\\W)+"," ",text)
 
-	sorted_items = sorted_items[:topn]
+		return text
 
-	score_vals = []
-	feature_vals = []
 
-	for idx, score in sorted_items:
-	    fname = feature_names[idx]
-		score_vals.append(round(score, 3))
-		feature_vals.append(feature_names[idx])
-
-	results= {}
-	for idx in range(len(feature_vals)):
-		results[feature_vals[idx]]=score_vals[idx]
-
-	return results
+	def sort_coo(self, coo_matrix):
+		tuples = zip(coo_matrix.col, coo_matrix.data)
+		return sorted(tuples, key=lambda x: (x[1], x[0]), reverse=True)
 
 
 
-def get_stop_words():
-	f = open("stop_words.txt")
-	stop_words = f.readlines()
 
-	for i in range(len(stop_words)):
-		stop_words[i] = stop_words[i][:-1]
+	def extract_topn_from_vector(self, feature_names, sorted_items, topn):
 
+		sorted_items = sorted_items[:topn]
 
-	return stop_words
+		score_vals = []
+		feature_vals = []
 
+		for idx, score in sorted_items:
+		    fname = feature_names[idx]
+			score_vals.append(round(score, 3))
+			feature_vals.append(feature_names[idx])
 
-def get_text(df):
-	texts = []
+		results= {}
+		for idx in range(len(feature_vals)):
+			results[feature_vals[idx]]=score_vals[idx]
 
-	for i in range(df.shape[0]):
-		if type(df.iloc[i,2]) == float:
-			head = ""
-		else:
-			head = df.iloc[i,2]
-
-
-		if type(df.iloc[i,3]) == float:
-			article = ""
-		else:
-			article = df.iloc[i,3]
-
-
-		text = head + " " + article
-		text = preprocess_text(text)
-		texts.append(text)
-
-	df["Text"] = texts
-
-	return df
-
-
-def extract_keywords_whole(cv, transformer, documents, n):
-	tfidf_vector = transformer.transform(cv.transform(documents))
-
-	results = []
-	for i in range(tfidf_vector.shape[0]):
-		vector = tfidf_vector[i]
-		sorted_items = sort_coo(vector.tocoo())
-
-		keywords = extract_topn_from_vector(cv.get_feature_names(), sorted_items, n)
-		results.append(keywords)
-
-	return results
+		return results
 
 
 
-def extract_keywords_single(cv, transformer, doc, n):
-	tfidf_vector = transformer.transform(cv.transform([doc]))
+	def get_stop_words(self):
+		f = open("stop_words.txt")
+		stop_words = f.readlines()
 
-	sorted_items = sort_coo(tfidf_vector.tocoo())
-	keywords = extract_topn_from_vector(cv.get_feature_names(), sorted_items, n)
-
-	return keywords
-
+		for i in range(len(stop_words)):
+			stop_words[i] = stop_words[i][:-1]
 
 
-def tfidf(documents, stop_words):
-	cv = CountVectorizer(stop_words = stop_words)
+		return stop_words
 
-	word_count_vector = cv.fit_transform(documents)
-	print("Length of Stop Words: ", len(stop_words))
-	print("Size of Vocabulary [excluding stopwords]: ", word_count_vector.shape[1])
 
-	print("\n\nEnter maximum size of Features [-1 for keeping size intact]: ")
-	max_features = int(input())
+	def get_text(self, df):
+		texts = []
 
-	if max_features != -1:
-		cv = CountVectorizer(stop_words = stop_words, max_features = max_features)
+		for i in range(df.shape[0]):
+			if type(df.iloc[i,2]) == float:
+				head = ""
+			else:
+				head = df.iloc[i,2]
+
+
+			if type(df.iloc[i,3]) == float:
+				article = ""
+			else:
+				article = df.iloc[i,3]
+
+
+			text = head + " " + article
+			text = preprocess_text(text)
+			texts.append(text)
+
+		df["Text"] = texts
+
+		return df
+
+
+	def extract_keywords_util(self, cv, transformer, documents, n):
+		tfidf_vector = transformer.transform(cv.transform(documents))
+
+		results = []
+		for i in range(tfidf_vector.shape[0]):
+			vector = tfidf_vector[i]
+			sorted_items = sort_coo(vector.tocoo())
+
+			keywords = extract_topn_from_vector(cv.get_feature_names(), sorted_items, n)
+			results.append(keywords)
+
+		return results
+
+
+
+
+	def tfidf(self, documents, stop_words):
+		cv = CountVectorizer(stop_words = stop_words)
+
 		word_count_vector = cv.fit_transform(documents)
+		print("Length of Stop Words: ", len(stop_words))
+		print("Size of Vocabulary [excluding stopwords]: ", word_count_vector.shape[1])
 
-	transformer = TfidfTransformer(smooth_idf = True, use_idf = True)
-	transformer.fit(word_count_vector)
+		print("\n\nEnter maximum size of Features [-1 for keeping size intact]: ")
+		max_features = int(input())
 
-	return cv, transformer
+		if max_features != -1:
+			cv = CountVectorizer(stop_words = stop_words, max_features = max_features)
+			word_count_vector = cv.fit_transform(documents)
 
+		transformer = TfidfTransformer(smooth_idf = True, use_idf = True)
+		transformer.fit(word_count_vector)
 
-
-def dataset_by_month(df, month):
-	temp = df[df['Date'].dt.month == month]
-
-	return temp
-
-
-def dataset_by_week(df, month, week):
-	temp1 = dataset_by_month(df, month)
-	days = []
-	for i in range(((week-1)*7+1),(week*7+1)):
-		days.append(i)
-
-	
-	temp = temp1[temp1['Date'].dt.day == days[0]]
-	for i in range(1,len(days)):
-		temp = pd.concat([temp, temp1[temp1['Date'].dt.day == days[i]]], ignore_index = True)
+		return cv, transformer
 
 
-	return temp
+	def dataset_by_year(self, df, year):
+		temp = df[df['Date'].dt.year == year]
+
+		return temp
+
+
+	def dataset_by_month(self, df, year, month):
+		temp1 = self.dataset_by_year(df, year)
+
+		temp = temp1[temp1['Date'].dt.month == month]
+
+		return temp
+
+
+	def dataset_by_week(self, df, year, week):
+		temp1 = dataset_by_year(df, year)
+
+		temp = temp1[temp1['Date'].dt.week == week]
+
+		return temp
+
+
+	def dataset_by_day(self, df, year, month, day):
+		temp1 = self.dataset_by_month(df, year, month)
+		temp = temp1[temp1['Date'].dt.day == day]
+
+		return temp
 
 
 
-def driver():
-	print("Extract keywords across a single section or multiple sections?\nEnter s for single, m for multiple: ")
-	choice = input().lower()
+	def extract(self, paths, interval = 'whole', no_of_keywords = 10): 
+		"""
+		This method function is of use to the User.
+		Parameters received"
+		1. paths -> A list of strings, each string determines the path of a .csv file
+					containing the articles
+		2. interval -> string determining the timeframe from which articles are to be
+					taken. Following formates are approved:
+					(i) "whole": Complete section (DEFAULT)
+					(ii) "m-YYYY-MM": Articles from the month of March 2020 would be "m-2020-03"
+					(iii) "y-YYYY": Articles from 2020 would be "y-2020"
+					(iv) "d-YYYY-MM-DD" : Articles from 25th March 2020 would be "d-2020-03-25"
+					(v) "w-YYYY-WW": Articles from 28th week of 2020 would be "w-2020-28"
 
-	if choice not in ["s", "m"]:
-		print("Invalid Input, try again!")
-	else:
-		if choice == "s":
-			print("Enter path of Article file: ")
-			path = input()
-			df = pd.read_csv(path)
+		3. no_of_keywords -> integer determining number of keywords to be extracted (DEFAULT: 10)
+		
+		"""
 
-		else:
-			print("Enter comma seperated paths of Article files: ")
-			paths = input().split(',')
-			df = pd.read_csv(paths[0])
+		df = pd.read_csv(paths[0])
 
-			for index in range(1,len(paths)):
-				path = paths[index]
-				temp = pd.read_csv(temp)
-				df = pd.concat([df, temp], ignore_index = True)
+		for index in range(1,len(paths)):
+			path = paths[index]
+			temp = pd.read_csv(temp)
+			df = pd.concat([df, temp], ignore_index = True)
 
-		stop_words = get_stop_words()
+		stop_words = self.get_stop_words()
 
-		df = get_text(df)
+		df = self.get_text(df)
+		self.df = df
 
 		documents = df["Text"].tolist()
-		cv, transformer = tfidf(documents, stop_words)
-
-		print("Extract Articles:\n1. Monthly\n2. Weekly\n3. Section as a whole\n4. Section by Articles\nEnter choice: ")
-		choice = int(input())
-
-		if choice == 1:
-			print("Enter Month value[1-12]: ")
-			month = int(input())
-
-			if month < 1 or month >12:
-				print("Invalid input, try again!")
-			else:
-				print("Number of keywords for individual Articles (press -1 for default which is 10): ")
-				n = int(input())
-				if n == -1:
-					n = 10
-
-				temp = dataset_by_month(df, month)
-				documents = temp["Text"].tolist()
-				docs = ""
-
-				for doc in documents:
-					docs = docs + doc
-
-				keywords = extract_keywords_single(cv, transformer, docs, n)
-				for k in keywords:
-					print(k, keywords[k])
+		cv, transformer = self.tfidf(documents, stop_words)
 
 
-		elif choice == 2:
-			print("Enter Month value[1-12]: ")
-			month = int(input())
+		if interval[0] == 'y':
+			year = int(interval[2:])
 
-			if month < 1 or month >12:
-				print("Invalid input, try again!")
-			else:
-				print("Enter Week Number[1-5]: ")
-				week = int(input())
+			temp = self.dataset_by_year(df, year)
+			documents = temp["Text"].tolist()
+			docs = ""
 
-				if week<1 or week>5:
-					print("Invalid input, try again!")
+			for doc in documents:
+				docs = docs + doc
 
-				else:
+			keywords = extract_keywords_util(cv, transformer, [docs], no_of_keywords)
 
-					temp = dataset_by_week(df, month, week)
-					print("Number of keywords for individual Articles (press -1 for default which is 10): ")
-					n = int(input())
-					if n == -1:
-						n = 10
 
-					
-					documents = temp["Text"].tolist()
-					docs = ""
+		elif interval[0] == 'm':
+			year = int(interval[2:6])
+			month = int(interval[7:])
 
-					for doc in documents:
-						docs = docs + doc
+			temp = self.dataset_by_month(df, year, month)
+			documents = temp["Text"].tolist()
+			docs = ""
 
-					keywords = extract_keywords_single(cv, transformer, docs, n)
-					for k in keywords:
-						print(k, keywords[k])
+			for doc in documents:
+				docs = docs + doc
 
-		elif choice == 3:
+			keywords = extract_keywords_util(cv, transformer, [docs], no_of_keywords)
+
+		elif interval[0] == 'd':
+
+			year = int(interval[2:6])
+			month = int(interval[7:9])
+			day = int(interval[10:])
+
+			temp = self.dataset_by_day(df, year, month, day)
 			documents = df["Text"].tolist()
 
-			print("Number of keywords for individual Articles (press -1 for default which is 10): ")
-			n = int(input())
-			if n == -1:
-				n = 10
-			results = extract_keywords_whole(cv, transformer, documents, n)
+			docs = ""
 
-			return results
+			for doc in documents:
+				docs = docs + doc
 
-		elif choice == 4:
-			print("Number of Articles in Data Frame: ", df.shape[0], ".............")
-			print("Enter index number of Article: ")
-			index = int(input())-1
+			keywords = extract_keywords_util(cv, transformer, [docs], no_of_keywords)
 
+		elif interval[0] == 'w':
+
+			year = int(interval[2:6])
+			week = int(interval[7:])
+
+			temp = self.dataset_by_week(df, year, week)
 			documents = df["Text"].tolist()
-			doc = documents[index]
 
-			print("Number of keywords for individual Articles (press -1 for default which is 10): ")
-			n = int(input())
-			if n == -1:
-				n = 10
+			docs = ""
 
+			for doc in documents:
+				docs = docs + doc
 
-			keywords = extract_keywords_single(cv, transformer, docs, n)
-			for k in keywords:
-				print(k, keywords[k])
+			keywords = extract_keywords_util(cv, transformer, [docs], no_of_keywords)
 
 
 		else:
-			print("Invalid Input, try again!")
+			keywords = self.extract_keywords_util(cv, transformer, documents, no_of_keywords)
+
+
+		return keywords
